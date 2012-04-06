@@ -61,7 +61,7 @@
   (ad-activate 'ido-set-matches-1))
 
 ;;;###autoload
-(defun ido-better-flex/score (string abbreviation)
+(defsubst ido-better-flex/score (string abbreviation)
   "Computes the score of matching string with abbreviation.
    The return value is in the range 0.0 to 1.0 the later being full-match."
   (let ((len (length abbreviation)))
@@ -73,17 +73,24 @@
 (defun ido-better-flex/match (items)
   "Returns an ordered list (higher score first) of items that match the
    current `ido-text'. Items are included only if their score is greater than zero."
-    (mapcar 'car (ido-better-flex/matches ido-text items)))
+; (mapcar 'car (ido-better-flex/matches ido-text items))
+  (let* ((lst (ido-better-flex/matches ido-text items))
+	 (ptr lst))
+    (while ptr
+      (setcar ptr (caar ptr))
+      (setq ptr (cdr ptr)))
+    lst))
 
 (defun ido-better-flex/matches (abbrev items)
-  (let (score matches)
-    (mapc (lambda (item)
-              (let ((name (ido-name item)) score)
-                (if (> (setq score (ido-better-flex/score name abbrev)) 0)
-                    (setq matches (cons (cons item score) matches))))) items)
+  (let (matches score name)
+    (dolist (item items)
+      (setq name  (ido-name item)
+	    score (ido-better-flex/score name abbrev))
+      (if (> score 0)
+	  (push (cons item score) matches)))
     (sort matches (lambda (x y) (> (cdr x) (cdr y))))))
 
-(defun ido-better-flex/position (av string start end from-end)
+(defsubst ido-better-flex/position (av string start end from-end)
   "Searchs a character `av' on `string' backwards up until index `end'"
   (if ido-case-fold
       (or (position (upcase av) string :start start :end end :from-end from-end)
@@ -91,7 +98,7 @@
     (position av string :start start :end end :from-end from-end)))
 
 
-(defun ido-better-flex/bits (string abbreviation)
+(defsubst ido-better-flex/bits (string abbreviation)
   "Construct a float number representing the match score of given abbreviation."
     (let ((score 0) (fws 0) (st 0) (ls (length string)) fe index av n)
       (catch 'failed
@@ -122,7 +129,7 @@
 
           (logior score (lsh fws ls)))))
 
-(defun ido-better-flex/build-score (string abbreviation)
+(defsubst ido-better-flex/build-score (string abbreviation)
   "Calculates the fuzzy score of matching `string' with `abbreviation'.
    The score is a float number calculated based on the number characters
    from `abbreviation' that match `string' and how immediate they are to each other.
@@ -154,7 +161,10 @@
 ;;;###autoload
 (defadvice ido-set-matches-1 (around ido-better-flex-match)
   "An advice using `ido-better-flex' for IDO matching."
-  (setq ad-return-value (ido-better-flex/match (ad-get-arg 0))))
+  (if (< 1 (length ido-text))
+      (setq ad-return-value (ido-better-flex/match (ad-get-arg 0)))
+    ;; does it make sense when there is only
+    ad-do-it))
 
 ;;;###autoload
 (progn (ido-better-flex/enable))
